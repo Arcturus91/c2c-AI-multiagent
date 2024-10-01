@@ -3,7 +3,8 @@ import os
 import sys
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import MongoDBAtlasVectorSearch
-from langchain_community.document_loaders import PyPDFLoader
+
+from langchain_community.document_loaders import DirectoryLoader,PyPDFLoader, PyPDFDirectoryLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
@@ -30,8 +31,9 @@ try:
         raise ConnectionError(f"Failed to connect to MongoDB: {str(e)}")
 
     try:
-        loader = PyPDFLoader("documents/mini-Brand-Guidelines.pdf")
+        loader = PyPDFDirectoryLoader("documents")
         documents = loader.load()
+        print(f"Number of documents loaded: {len(documents)}")
     except FileNotFoundError:
         raise FileNotFoundError("PDF file not found")
 
@@ -45,15 +47,15 @@ try:
 
     try:
         vector_store = MongoDBAtlasVectorSearch.from_documents(
-            splits, embeddings, collection=collection, index_name="vector_index"
+            splits, embeddings, collection=collection, index_name="vector_index_V0"
         )
     except Exception as e:
         raise RuntimeError(f"Failed to create vector store: {str(e)}")
 
-    retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+    retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": 5})
 
     try:
-        llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, openai_api_key=openai_api_key)
+        llm = ChatOpenAI(model_name="gpt-4o", temperature=0, openai_api_key=openai_api_key)
     except Exception as e:
         raise RuntimeError(f"Failed to initialize ChatOpenAI: {str(e)}")
 
@@ -71,10 +73,32 @@ try:
         except Exception as e:
             raise RuntimeError(f"Error processing query: {str(e)}")
 
-    user_query = "What is this document about?"
+    user_query = """You are an expert SEO-optimized article outliner for Class2Class. You will receive a topic  and some information for a blog article, which you must create an outline for, fitting for Class2Class' blog section on the website. The outline structure must always include: Topic/article title, description, aim of the article, main points of the content, CTA, and a list of the used SEO keywords, which you must always access through the attached "SEO Keywords" file, which you have access to in your knowledge, and this should be the only source for used SEO words, which should also be in bold. Always write your outlines considering a SEO optimized format, which is described in the rules section - also available in your knowledge. 
+
+__RULES for SEO optimized structure__
+MUST ALWAYS FOLLOW AND CONSIDER THESE INSTRUCTIONS FOR THE OUTLINE:
+
+Must directly or indirectly mention Class2Class
+Must access and use the knowledge file "SEO keywords" and mention at least 10 primary keywords, 5 secondary keywords and 3 long tail keywords in the article (marked bold in outline)
+Must sure the Focus Keywords are in the SEO Title.
+Must sure The Focus Keywords are in the SEO Meta Description.
+Make Sure The Focus Keywords appears in the first 10% of the content.
+Main content must be between 500-700 words
+Must include focus Keyword in the subheading(s).
+Must suggest 3 different titles.
+Titles must be short. 
+Must use a positive or a negative sentiment word in the Title.
+Must use a Power Keyword in the Title.
+Used SEO words must be written in a list
+You must mimic Class2Class' writing style, tone, voice and help them write SEO optimized articles in their communication style which is all accessible in your knowledge. The outline must also be adhering to their brand guidelines. 
+Your outlines focus on creating authentic, user-specific content for Class2Class website blogs and articles.
+
+Based on the documents you have access to, create an outline for a blog post about online education platforms."""
+
     try:
-        answer, sources = process_query(user_query)
+        answer = process_query(user_query)
         print(f"Answer: {answer}")
+        
     except Exception as e:
         print(f"Error: {str(e)}")
 
